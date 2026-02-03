@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Tilt Collision Game</title>
+<title>Landscape Tilt Game</title>
 
 <style>
 body{
@@ -19,9 +19,11 @@ body{
   color:white;
 }
 
-#score{
-  font-size:32px;
+#hud{
+  display:flex;
+  gap:30px;
   margin-bottom:20px;
+  font-size:24px;
 }
 
 #main{
@@ -34,7 +36,6 @@ body{
   overflow:hidden;
 }
 
-/* CENTER WALL */
 #main::after{
   content:"";
   position:absolute;
@@ -58,81 +59,153 @@ body{
 #a{ background:#ff3b3b; }
 #b{ background:#00e5ff; }
 
-#gameover{
-  display:none;
+#overlay{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.8);
-  color:white;
-  font-size:40px;
+  background:rgba(0,0,0,0.85);
+  display:none;
+  flex-direction:column;
   justify-content:center;
   align-items:center;
+  gap:20px;
+  font-size:36px;
+  z-index:5;
+}
+
+#rotate{
+  position:fixed;
+  inset:0;
+  background:black;
+  color:white;
+  display:none;
+  justify-content:center;
+  align-items:center;
+  font-size:28px;
+  text-align:center;
+  z-index:10;
+}
+
+button{
+  font-size:22px;
+  padding:10px 25px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="score">0</div>
+<div id="rotate">Phone ko LANDSCAPE me ghumao 🔄</div>
+
+<div id="hud">
+  <div>TIME: <span id="timeScore">0</span></div>
+  <div>HITS: <span id="hitScore">0</span></div>
+</div>
 
 <div id="main">
   <div id="a"></div>
   <div id="b"></div>
 </div>
 
-<div id="gameover">GAME OVER</div>
+<div id="overlay">
+  <div>GAME OVER</div>
+  <button onclick="restart()">RESTART</button>
+</div>
 
 <script>
 const main = document.getElementById("main");
 const a = document.getElementById("a");
 const b = document.getElementById("b");
-const scoreBox = document.getElementById("score");
-const gameOverBox = document.getElementById("gameover");
 
-let score = 0;
-let ax = 0;
-let bx = main.offsetWidth - b.offsetWidth;
+const timeBox = document.getElementById("timeScore");
+const hitBox  = document.getElementById("hitScore");
+const overlay = document.getElementById("overlay");
+const rotate  = document.getElementById("rotate");
 
+let ax, bx;
+let speed = 2.5;
 let tilt = 0;
-let speed = 3;
 let running = true;
 
-const centerX = main.offsetWidth / 2;
+let timeScore = 0;
+let hitScore = 0;
+
 const wallHalf = 3;
 
 window.addEventListener("deviceorientation", e=>{
   tilt = e.gamma || 0;
 });
 
-function hitCenterWall(x, ball){
+function hitCenter(x, ball){
+  const centerX = main.offsetWidth / 2;
   const c = x + ball.offsetWidth / 2;
   return Math.abs(c - centerX) < wallHalf + ball.offsetWidth / 2;
 }
 
+function reset(){
+  ax = 20;
+  bx = main.offsetWidth - b.offsetWidth - 20;
+  timeScore = 0;
+  hitScore = 0;
+  running = true;
+  overlay.style.display = "none";
+}
+
+function restart(){
+  reset();
+  loop();
+}
+
+function checkOrientation(){
+  if(window.innerHeight > window.innerWidth){
+    rotate.style.display = "flex";
+    running = false;
+  }else{
+    rotate.style.display = "none";
+    if(!running){
+      running = true;
+      loop();
+    }
+  }
+}
+
+window.addEventListener("resize", checkOrientation);
+
 function loop(){
   if(!running) return;
 
-  let move = 0;
-  if(tilt > 6) move = speed;
-  if(tilt < -6) move = -speed;
+  let dir = 0;
+  if(tilt > 4) dir = 1;
+  if(tilt < -4) dir = -1;
 
-  ax += move;
-  bx += move;
+  ax += speed * dir;
+  bx += speed * dir;
 
   a.style.left = ax + "px";
   b.style.left = bx + "px";
 
-  // WALL HIT = GAME OVER
-  if(hitCenterWall(ax, a) || hitCenterWall(bx, b)){
+  timeScore += 0.02;
+  timeBox.innerText = timeScore.toFixed(1);
+
+  if(ax + a.offsetWidth >= bx){
+    hitScore++;
+    hitBox.innerText = hitScore;
+    ax -= 10;
+    bx += 10;
+  }
+
+  if(hitCenter(ax, a) || hitCenter(bx, b)){
     running = false;
-    gameOverBox.style.display = "flex";
+    overlay.style.display = "flex";
     return;
   }
 
   requestAnimationFrame(loop);
 }
 
+reset();
+checkOrientation();
 loop();
 </script>
 </body>
 </html>
+
