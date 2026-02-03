@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tilt Collision Game</title>
+
+<style>
+body{
+  margin:0;
+  height:100vh;
+  background:#0f0f0f;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  font-family:Arial;
+  color:white;
+}
+
+#score{
+  font-size:32px;
+  margin-bottom:20px;
+}
+
+#main{
+  position:relative;
+  width:100vw;
+  max-width:1200px;
+  height:100px;
+  background:#2b2b2b;
+  border-radius:40px;
+  overflow:hidden;
+}
+
+/* CENTER WALL */
+#main::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:0;
+  width:6px;
+  height:100%;
+  background:red;
+  transform:translateX(-50%);
+}
+
+#a,#b{
+  position:absolute;
+  width:90px;
+  height:90px;
+  border-radius:50%;
+  top:50%;
+  transform:translateY(-50%);
+}
+
+#a{ background:#ff3b3b; }
+#b{ background:#00e5ff; }
+
+#gameover{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.8);
+  color:white;
+  font-size:40px;
+  justify-content:center;
+  align-items:center;
+}
+</style>
+</head>
+
+<body>
+
+<div id="score">0</div>
+
+<div id="main">
+  <div id="a"></div>
+  <div id="b"></div>
+</div>
+
+<div id="gameover">GAME OVER</div>
+
+<script>
+const main = document.getElementById("main");
+const a = document.getElementById("a");
+const b = document.getElementById("b");
+const scoreBox = document.getElementById("score");
+const gameOverBox = document.getElementById("gameover");
+
+let score = 0;
+let ax = 0;
+let bx = main.offsetWidth - b.offsetWidth;
+
+let tilt = 0;
+let speed = 3;
+let running = true;
+
+const centerX = main.offsetWidth / 2;
+const wallHalf = 3;
+
+window.addEventListener("deviceorientation", e=>{
+  tilt = e.gamma || 0;
+});
+
+function hitCenterWall(x, ball){
+  const c = x + ball.offsetWidth / 2;
+  return Math.abs(c - centerX) < wallHalf + ball.offsetWidth / 2;
+}
+
+function loop(){
+  if(!running) return;
+
+  let move = 0;
+  if(tilt > 6) move = speed;
+  if(tilt < -6) move = -speed;
+
+  ax += move;
+  bx += move;
+
+  a.style.left = ax + "px";
+  b.style.left = bx + "px";
+
+  // WALL HIT = GAME OVER
+  if(hitCenterWall(ax, a) || hitCenterWall(bx, b)){
+    running = false;
+    gameOverBox.style.display = "flex";
+    return;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
