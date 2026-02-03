@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Landscape Tilt Game</title>
+<title>Tilt Wall Game</title>
 
 <style>
 body{
@@ -17,15 +17,18 @@ body{
   align-items:center;
   font-family:Arial;
   color:white;
+  overflow:hidden;
 }
 
+/* HUD */
 #hud{
   display:flex;
   gap:30px;
-  margin-bottom:20px;
-  font-size:24px;
+  margin-bottom:15px;
+  font-size:22px;
 }
 
+/* GAME TRACK */
 #main{
   position:relative;
   width:100vw;
@@ -36,6 +39,7 @@ body{
   overflow:hidden;
 }
 
+/* CENTER WALL */
 #main::after{
   content:"";
   position:absolute;
@@ -47,6 +51,7 @@ body{
   transform:translateX(-50%);
 }
 
+/* BALLS */
 #a,#b{
   position:absolute;
   width:90px;
@@ -59,55 +64,56 @@ body{
 #a{ background:#ff3b3b; }
 #b{ background:#00e5ff; }
 
-#overlay{
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,0.85);
-  display:none;
-  flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  gap:20px;
-  font-size:36px;
-  z-index:5;
-}
-
-#rotate{
+/* OVERLAYS */
+#startScreen,
+#rotate,
+#gameover{
   position:fixed;
   inset:0;
   background:black;
-  color:white;
-  display:none;
+  display:flex;
   justify-content:center;
   align-items:center;
-  font-size:28px;
-  text-align:center;
+  flex-direction:column;
+  gap:20px;
   z-index:10;
 }
 
+#rotate,
+#gameover{ display:none; }
+
 button{
   font-size:22px;
-  padding:10px 25px;
+  padding:12px 30px;
 }
 </style>
 </head>
 
 <body>
 
+<!-- START -->
+<div id="startScreen">
+  <button id="startBtn">START GAME</button>
+</div>
+
+<!-- ROTATE -->
 <div id="rotate">Phone ko LANDSCAPE me ghumao 🔄</div>
 
+<!-- HUD -->
 <div id="hud">
   <div>TIME: <span id="timeScore">0</span></div>
   <div>HITS: <span id="hitScore">0</span></div>
 </div>
 
+<!-- GAME -->
 <div id="main">
   <div id="a"></div>
   <div id="b"></div>
 </div>
 
-<div id="overlay">
-  <div>GAME OVER</div>
+<!-- GAME OVER -->
+<div id="gameover">
+  <div style="font-size:36px;">GAME OVER</div>
   <button onclick="restart()">RESTART</button>
 </div>
 
@@ -116,60 +122,89 @@ const main = document.getElementById("main");
 const a = document.getElementById("a");
 const b = document.getElementById("b");
 
+const startScreen = document.getElementById("startScreen");
+const rotateScreen = document.getElementById("rotate");
+const gameOverBox  = document.getElementById("gameover");
+
 const timeBox = document.getElementById("timeScore");
 const hitBox  = document.getElementById("hitScore");
-const overlay = document.getElementById("overlay");
-const rotate  = document.getElementById("rotate");
+const startBtn = document.getElementById("startBtn");
 
 let ax, bx;
 let speed = 2.5;
 let tilt = 0;
-let running = true;
+let running = false;
 
 let timeScore = 0;
 let hitScore = 0;
 
-const wallHalf = 3;
+/* ===== SENSOR PERMISSION ===== */
+startBtn.addEventListener("click", async ()=>{
+  if(
+    typeof DeviceOrientationEvent !== "undefined" &&
+    typeof DeviceOrientationEvent.requestPermission === "function"
+  ){
+    const res = await DeviceOrientationEvent.requestPermission();
+    if(res !== "granted"){
+      alert("Tilt permission required");
+      return;
+    }
+  }
+  startScreen.style.display = "none";
+  reset();
+  checkOrientation();
+  loop();
+});
 
+/* ===== ORIENTATION ===== */
+function checkOrientation(){
+  if(window.innerHeight > window.innerWidth){
+    rotateScreen.style.display = "flex";
+    running = false;
+  }else{
+    rotateScreen.style.display = "none";
+    running = true;
+  }
+}
+window.addEventListener("resize", checkOrientation);
+
+/* ===== TILT ===== */
 window.addEventListener("deviceorientation", e=>{
   tilt = e.gamma || 0;
 });
 
-function hitCenter(x, ball){
-  const centerX = main.offsetWidth / 2;
-  const c = x + ball.offsetWidth / 2;
-  return Math.abs(c - centerX) < wallHalf + ball.offsetWidth / 2;
+/* ===== WALL DETECTION (SOLID) ===== */
+function hitCenterWall(x, ball){
+  const center = main.offsetWidth / 2;
+  const wallHalf = 3;
+  const wallLeft = center - wallHalf;
+  const wallRight = center + wallHalf;
+
+  const ballLeft = x;
+  const ballRight = x + ball.offsetWidth;
+
+  return ballRight > wallLeft && ballLeft < wallRight;
 }
 
+/* ===== RESET ===== */
 function reset(){
   ax = 20;
   bx = main.offsetWidth - b.offsetWidth - 20;
   timeScore = 0;
   hitScore = 0;
-  running = true;
-  overlay.style.display = "none";
+  timeBox.innerText = "0";
+  hitBox.innerText = "0";
+  gameOverBox.style.display = "none";
 }
 
+/* ===== RESTART ===== */
 function restart(){
   reset();
+  running = true;
   loop();
 }
 
-function checkOrientation(){
-  if(window.innerHeight > window.innerWidth){
-    rotate.style.display = "flex";
-    running = false;
-  }else{
-    rotate.style.display = "none";
-    if(!running){
-      running = true;
-      loop();
-    }
-  }
-}
-
-window.addEventListener("resize", checkOrientation);
-
+/* ===== MAIN LOOP ===== */
 function loop(){
   if(!running) return;
 
@@ -183,9 +218,11 @@ function loop(){
   a.style.left = ax + "px";
   b.style.left = bx + "px";
 
+  /* TIME SCORE */
   timeScore += 0.02;
   timeBox.innerText = timeScore.toFixed(1);
 
+  /* BALL HIT COUNT */
   if(ax + a.offsetWidth >= bx){
     hitScore++;
     hitBox.innerText = hitScore;
@@ -193,18 +230,15 @@ function loop(){
     bx += 10;
   }
 
-  if(hitCenter(ax, a) || hitCenter(bx, b)){
+  /* WALL = GAME OVER */
+  if(hitCenterWall(ax, a) || hitCenterWall(bx, b)){
     running = false;
-    overlay.style.display = "flex";
+    gameOverBox.style.display = "flex";
     return;
   }
 
   requestAnimationFrame(loop);
 }
-
-reset();
-checkOrientation();
-loop();
 </script>
 </body>
 </html>
