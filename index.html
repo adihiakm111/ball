@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Tilt Balance Game</title>
+<title>Tilt Wall Game</title>
 
 <style>
 body{
@@ -20,6 +20,26 @@ body{
   overflow:hidden;
 }
 
+/* SCREENS */
+.screen{
+  position:fixed;
+  inset:0;
+  background:black;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+  gap:20px;
+  z-index:10;
+}
+
+#rotate,#over{ display:none; }
+
+button{
+  font-size:22px;
+  padding:12px 30px;
+}
+
 /* HUD */
 #hud{
   font-size:22px;
@@ -33,7 +53,7 @@ body{
   max-width:1200px;
   height:110px;
   background:#2b2b2b;
-  border-radius:50px;
+  border-radius:55px;
   overflow:hidden;
 }
 
@@ -60,106 +80,85 @@ body{
   left:50%;
   transform:translate(-50%, -50%);
 }
-
-/* SCREENS */
-#start,#rotate,#over{
-  position:fixed;
-  inset:0;
-  background:black;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  flex-direction:column;
-  gap:20px;
-  z-index:10;
-}
-
-#rotate,#over{ display:none; }
-
-button{
-  font-size:22px;
-  padding:12px 30px;
-}
 </style>
 </head>
 
 <body>
 
-<div id="start">
+<!-- START -->
+<div id="start" class="screen">
   <button id="startBtn">START GAME</button>
 </div>
 
-<div id="rotate">Phone ko LANDSCAPE me ghumao 🔄</div>
+<!-- ROTATE -->
+<div id="rotate" class="screen">
+  Phone ko LANDSCAPE me ghumao 🔄
+</div>
 
+<!-- HUD -->
 <div id="hud">TIME: <span id="time">0</span></div>
 
+<!-- GAME -->
 <div id="main">
   <div id="ball"></div>
 </div>
 
-<div id="over">
+<!-- GAME OVER -->
+<div id="over" class="screen">
   <div style="font-size:36px;">GAME OVER</div>
-  <button onclick="restart()">RESTART</button>
+  <button onclick="location.reload()">RESTART</button>
 </div>
 
 <script>
-const main = document.getElementById("main");
-const ball = document.getElementById("ball");
-const start = document.getElementById("start");
-const rotate = document.getElementById("rotate");
-const over = document.getElementById("over");
-const timeBox = document.getElementById("time");
-const startBtn = document.getElementById("startBtn");
+const startScreen  = document.getElementById("start");
+const rotateScreen = document.getElementById("rotate");
+const overScreen   = document.getElementById("over");
+const startBtn     = document.getElementById("startBtn");
+
+const main   = document.getElementById("main");
+const ball   = document.getElementById("ball");
+const timeEl = document.getElementById("time");
 
 let x = 0;
 let vel = 0;
-let accel = 0;
-let running = false;
+let tilt = 0;
+
+let canPlay = false;   // 🔑 sirf gameplay control
 let time = 0;
 
-/* ===== SENSOR PERMISSION ===== */
+/* ===== START + PERMISSION ===== */
 startBtn.onclick = async ()=>{
   if(
-    typeof DeviceMotionEvent !== "undefined" &&
-    typeof DeviceMotionEvent.requestPermission === "function"
+    typeof DeviceOrientationEvent !== "undefined" &&
+    typeof DeviceOrientationEvent.requestPermission === "function"
   ){
-    const res = await DeviceMotionEvent.requestPermission();
+    const res = await DeviceOrientationEvent.requestPermission();
     if(res !== "granted"){
-      alert("Motion permission required");
+      alert("Tilt permission required");
       return;
     }
   }
 
-  start.style.display = "none";
-  startMotion();
+  startScreen.style.display = "none";
   reset();
   checkOrientation();
   loop();
 };
 
-/* ===== DEVICE MOTION (REAL PHYSICS) ===== */
-let motionHandler = null;
+/* ===== SENSOR (KABHI BAND NAHI HOTA) ===== */
+window.addEventListener("deviceorientation", e=>{
+  tilt = e.gamma || 0;
+});
 
-function startMotion(){
-  if(motionHandler){
-    window.removeEventListener("devicemotion", motionHandler);
-  }
-
-  motionHandler = (e)=>{
-    accel = e.accelerationIncludingGravity.x || 0;
-  };
-
-  window.addEventListener("devicemotion", motionHandler);
-}
-
-/* ===== ORIENTATION ===== */
+/* ===== ORIENTATION CHECK ===== */
 function checkOrientation(){
   if(window.innerHeight > window.innerWidth){
-    rotate.style.display = "flex";
-    running = false;
+    rotateScreen.style.display = "flex";
+    canPlay = false;   // ⛔ pause only
   }else{
-    rotate.style.display = "none";
-    running = true;
+    rotateScreen.style.display = "none";
+    canPlay = true;    // ▶️ resume
+    loop();
   }
 }
 window.addEventListener("resize", checkOrientation);
@@ -169,44 +168,36 @@ function reset(){
   x = (main.offsetWidth - ball.offsetWidth) / 2;
   vel = 0;
   time = 0;
-  timeBox.innerText = "0";
-  over.style.display = "none";
-}
-
-/* ===== RESTART ===== */
-function restart(){
-  startMotion();
-  reset();
-  running = true;
-  loop();
+  timeEl.innerText = "0";
+  overScreen.style.display = "none";
 }
 
 /* ===== GAME LOOP ===== */
 function loop(){
-  if(!running) return;
+  if(!canPlay) return;
 
-  /* cold-drink style physics */
-  vel += accel * 0.4;
-  vel *= 0.98; // friction
+  /* tilt physics */
+  vel += tilt * 0.08;
+  vel *= 0.95;
   x += vel;
 
   ball.style.left = x + "px";
 
-  /* TIME SCORE */
+  /* time score */
   time += 0.016;
-  timeBox.innerText = time.toFixed(1);
+  timeEl.innerText = time.toFixed(1);
 
-  /* CENTER WALL HIT */
+  /* CENTER WALL COLLISION */
   const center = main.offsetWidth / 2;
-  const wallLeft = center - 4;
+  const wallLeft  = center - 4;
   const wallRight = center + 4;
 
-  const ballLeft = x;
+  const ballLeft  = x;
   const ballRight = x + ball.offsetWidth;
 
   if(ballRight > wallLeft && ballLeft < wallRight){
-    running = false;
-    over.style.display = "flex";
+    canPlay = false;
+    overScreen.style.display = "flex";
     return;
   }
 
