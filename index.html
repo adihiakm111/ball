@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport"
 content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Tilt Wall Game</title>
+<title>Tilt Balance Game</title>
 
 <style>
 body{
@@ -22,20 +22,18 @@ body{
 
 /* HUD */
 #hud{
-  display:flex;
-  gap:30px;
-  margin-bottom:15px;
   font-size:22px;
+  margin-bottom:15px;
 }
 
-/* GAME TRACK */
+/* TRACK */
 #main{
   position:relative;
   width:100vw;
   max-width:1200px;
-  height:100px;
+  height:110px;
   background:#2b2b2b;
-  border-radius:40px;
+  border-radius:50px;
   overflow:hidden;
 }
 
@@ -45,29 +43,26 @@ body{
   position:absolute;
   left:50%;
   top:0;
-  width:6px;
+  width:8px;
   height:100%;
   background:red;
   transform:translateX(-50%);
 }
 
-/* BALLS */
-#a,#b{
+/* BALL */
+#ball{
   position:absolute;
   width:90px;
   height:90px;
   border-radius:50%;
+  background:#00e5ff;
   top:50%;
-  transform:translateY(-50%);
+  left:50%;
+  transform:translate(-50%, -50%);
 }
 
-#a{ background:#ff3b3b; }
-#b{ background:#00e5ff; }
-
-/* OVERLAYS */
-#startScreen,
-#rotate,
-#gameover{
+/* SCREENS */
+#start,#rotate,#over{
   position:fixed;
   inset:0;
   background:black;
@@ -79,8 +74,7 @@ body{
   z-index:10;
 }
 
-#rotate,
-#gameover{ display:none; }
+#rotate,#over{ display:none; }
 
 button{
   font-size:22px;
@@ -91,150 +85,134 @@ button{
 
 <body>
 
-<!-- START -->
-<div id="startScreen">
+<div id="start">
   <button id="startBtn">START GAME</button>
 </div>
 
-<!-- ROTATE -->
 <div id="rotate">Phone ko LANDSCAPE me ghumao 🔄</div>
 
-<!-- HUD -->
-<div id="hud">
-  <div>TIME: <span id="timeScore">0</span></div>
-  <div>HITS: <span id="hitScore">0</span></div>
-</div>
+<div id="hud">TIME: <span id="time">0</span></div>
 
-<!-- GAME -->
 <div id="main">
-  <div id="a"></div>
-  <div id="b"></div>
+  <div id="ball"></div>
 </div>
 
-<!-- GAME OVER -->
-<div id="gameover">
+<div id="over">
   <div style="font-size:36px;">GAME OVER</div>
   <button onclick="restart()">RESTART</button>
 </div>
 
 <script>
 const main = document.getElementById("main");
-const a = document.getElementById("a");
-const b = document.getElementById("b");
-
-const startScreen = document.getElementById("startScreen");
-const rotateScreen = document.getElementById("rotate");
-const gameOverBox  = document.getElementById("gameover");
-
-const timeBox = document.getElementById("timeScore");
-const hitBox  = document.getElementById("hitScore");
+const ball = document.getElementById("ball");
+const start = document.getElementById("start");
+const rotate = document.getElementById("rotate");
+const over = document.getElementById("over");
+const timeBox = document.getElementById("time");
 const startBtn = document.getElementById("startBtn");
 
-let ax, bx;
-let speed = 2.5;
-let tilt = 0;
+let x = 0;
+let vel = 0;
+let accel = 0;
 let running = false;
-
-let timeScore = 0;
-let hitScore = 0;
+let time = 0;
 
 /* ===== SENSOR PERMISSION ===== */
-startBtn.addEventListener("click", async ()=>{
+startBtn.onclick = async ()=>{
   if(
-    typeof DeviceOrientationEvent !== "undefined" &&
-    typeof DeviceOrientationEvent.requestPermission === "function"
+    typeof DeviceMotionEvent !== "undefined" &&
+    typeof DeviceMotionEvent.requestPermission === "function"
   ){
-    const res = await DeviceOrientationEvent.requestPermission();
+    const res = await DeviceMotionEvent.requestPermission();
     if(res !== "granted"){
-      alert("Tilt permission required");
+      alert("Motion permission required");
       return;
     }
   }
-  startScreen.style.display = "none";
+
+  start.style.display = "none";
+  startMotion();
   reset();
   checkOrientation();
   loop();
-});
+};
+
+/* ===== DEVICE MOTION (REAL PHYSICS) ===== */
+let motionHandler = null;
+
+function startMotion(){
+  if(motionHandler){
+    window.removeEventListener("devicemotion", motionHandler);
+  }
+
+  motionHandler = (e)=>{
+    accel = e.accelerationIncludingGravity.x || 0;
+  };
+
+  window.addEventListener("devicemotion", motionHandler);
+}
 
 /* ===== ORIENTATION ===== */
 function checkOrientation(){
   if(window.innerHeight > window.innerWidth){
-    rotateScreen.style.display = "flex";
+    rotate.style.display = "flex";
     running = false;
   }else{
-    rotateScreen.style.display = "none";
+    rotate.style.display = "none";
     running = true;
   }
 }
 window.addEventListener("resize", checkOrientation);
 
-/* ===== TILT ===== */
-window.addEventListener("deviceorientation", e=>{
-  tilt = e.gamma || 0;
-});
-
-/* ===== WALL DETECTION (SOLID) ===== */
-function hitCenterWall(x, ball){
-  const center = main.offsetWidth / 2;
-  const wallHalf = 3;
-  const wallLeft = center - wallHalf;
-  const wallRight = center + wallHalf;
-
-  const ballLeft = x;
-  const ballRight = x + ball.offsetWidth;
-
-  return ballRight > wallLeft && ballLeft < wallRight;
-}
-
 /* ===== RESET ===== */
 function reset(){
-  ax = 20;
-  bx = main.offsetWidth - b.offsetWidth - 20;
-  timeScore = 0;
-  hitScore = 0;
+  x = (main.offsetWidth - ball.offsetWidth) / 2;
+  vel = 0;
+  time = 0;
   timeBox.innerText = "0";
-  hitBox.innerText = "0";
-  gameOverBox.style.display = "none";
+  over.style.display = "none";
 }
 
 /* ===== RESTART ===== */
 function restart(){
+  startMotion();
   reset();
   running = true;
   loop();
 }
 
-/* ===== MAIN LOOP ===== */
+/* ===== GAME LOOP ===== */
 function loop(){
   if(!running) return;
 
-  let dir = 0;
-  if(tilt > 4) dir = 1;
-  if(tilt < -4) dir = -1;
+  /* cold-drink style physics */
+  vel += accel * 0.4;
+  vel *= 0.98; // friction
+  x += vel;
 
-  ax += speed * dir;
-  bx += speed * dir;
-
-  a.style.left = ax + "px";
-  b.style.left = bx + "px";
+  ball.style.left = x + "px";
 
   /* TIME SCORE */
-  timeScore += 0.02;
-  timeBox.innerText = timeScore.toFixed(1);
+  time += 0.016;
+  timeBox.innerText = time.toFixed(1);
 
-  /* BALL HIT COUNT */
-  if(ax + a.offsetWidth >= bx){
-    hitScore++;
-    hitBox.innerText = hitScore;
-    ax -= 10;
-    bx += 10;
+  /* CENTER WALL HIT */
+  const center = main.offsetWidth / 2;
+  const wallLeft = center - 4;
+  const wallRight = center + 4;
+
+  const ballLeft = x;
+  const ballRight = x + ball.offsetWidth;
+
+  if(ballRight > wallLeft && ballLeft < wallRight){
+    running = false;
+    over.style.display = "flex";
+    return;
   }
 
-  /* WALL = GAME OVER */
-  if(hitCenterWall(ax, a) || hitCenterWall(bx, b)){
-    running = false;
-    gameOverBox.style.display = "flex";
-    return;
+  /* SIDE LIMIT */
+  if(x < 0 || x + ball.offsetWidth > main.offsetWidth){
+    vel *= -0.5;
   }
 
   requestAnimationFrame(loop);
@@ -242,4 +220,3 @@ function loop(){
 </script>
 </body>
 </html>
-
