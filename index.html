@@ -1,109 +1,182 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Simple Sensor Test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Accelerometer Game (OUT version)</title>
 
 <style>
 body{
   margin:0;
   height:100vh;
+  background:#111;
   display:flex;
   flex-direction:column;
   justify-content:center;
   align-items:center;
-  background:#000;
-  color:#0f0;
   font-family:Arial;
+  color:white;
+}
+
+#score{
+  font-size:28px;
+  margin-bottom:8px;
 }
 
 #info{
-  font-size:24px;
-  margin-bottom:20px;
+  font-size:15px;
+  margin-bottom:10px;
   text-align:center;
+}
+
+button{
+  font-size:18px;
+  padding:8px 20px;
+  margin-bottom:12px;
 }
 
 #track{
   width:90vw;
-  height:80px;
+  max-width:900px;
+  height:100px;
   background:#333;
-  border-radius:40px;
+  border-radius:50px;
   position:relative;
   overflow:hidden;
 }
 
 #ball{
-  width:60px;
-  height:60px;
+  width:70px;
+  height:70px;
   border-radius:50%;
-  background:cyan;
+  background:#00e5ff;
   position:absolute;
-  top:10px;
-  left:50%;
-  transform:translateX(-50%);
+  top:15px;
+  left:0;
+}
+
+#outScreen{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.8);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+  font-size:40px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="info">SCREEN TAP KARO</div>
+<div id="score">Score: 0</div>
+<div id="info">START dabao → phone seedha rakho</div>
+
+<button id="startBtn">START</button>
 
 <div id="track">
   <div id="ball"></div>
 </div>
 
+<div id="outScreen">
+  OUT<br>
+  <button onclick="location.reload()">RESTART</button>
+</div>
+
 <script>
+const scoreBox = document.getElementById("score");
 const info = document.getElementById("info");
 const ball = document.getElementById("ball");
 const track = document.getElementById("track");
+const startBtn = document.getElementById("startBtn");
+const outScreen = document.getElementById("outScreen");
+
+let x = 0;
+let velocity = 0;
+
+// sensor
+let raw = 0;
+let zero = 0;
+let calibrated = false;
+
+// score
+let startTime = 0;
+let score = 0;
 
 let started = false;
-let tilt = 0;
-let x = 0;
-let vel = 0;
+let running = false;
 
-document.body.addEventListener("click", async ()=>{
+/* ===== START ===== */
+startBtn.onclick = async ()=>{
   if(started) return;
   started = true;
 
-  // iPhone permission
   if(
-    typeof DeviceOrientationEvent !== "undefined" &&
-    typeof DeviceOrientationEvent.requestPermission === "function"
+    typeof DeviceMotionEvent !== "undefined" &&
+    typeof DeviceMotionEvent.requestPermission === "function"
   ){
-    const res = await DeviceOrientationEvent.requestPermission();
-    if(res !== "granted"){
-      info.innerText = "Permission denied";
+    const r = await DeviceMotionEvent.requestPermission();
+    if(r !== "granted"){
+      info.innerText = "Sensor permission denied";
       return;
     }
   }
 
-  info.innerText = "Phone jhukao (left / right)";
   x = (track.offsetWidth - ball.offsetWidth) / 2;
-  loop();
+  ball.style.left = x + "px";
+  velocity = 0;
+  score = 0;
+  scoreBox.innerText = "Score: 0";
+
+  info.innerText = "Phone seedha rakho (1 sec)...";
+
+  setTimeout(()=>{
+    zero = raw;
+    calibrated = true;
+    running = true;
+    startTime = Date.now();
+    info.innerText = "Ab LEFT / RIGHT jhukao";
+    loop();
+  },1000);
+};
+
+/* ===== ACCELEROMETER ===== */
+window.addEventListener("devicemotion", e=>{
+  if(!e.accelerationIncludingGravity) return;
+
+  const ax = e.accelerationIncludingGravity.x || 0;
+  const ay = e.accelerationIncludingGravity.y || 0;
+
+  raw = (window.innerHeight > window.innerWidth) ? ax : ay;
 });
 
-// SENSOR (simple)
-window.addEventListener("deviceorientation", e=>{
-  if(!started) return;
-  tilt = e.gamma || 0;   // left-right
-  info.innerText = "gamma: " + Math.round(tilt);
-});
-
+/* ===== GAME LOOP ===== */
 function loop(){
-  // simple physics
-  vel += tilt * 0.05;
-  vel *= 0.95;
-  x += vel;
+  if(!running || !calibrated) return;
 
-  // bounds
-  if(x < 0) x = 0;
-  if(x + ball.offsetWidth > track.offsetWidth){
-    x = track.offsetWidth - ball.offsetWidth;
+  const tilt = raw - zero;
+
+  const SENS = 0.35;
+  velocity += tilt * SENS;
+  velocity *= 0.95;
+  x += velocity;
+
+  const minX = 0;
+  const maxX = track.offsetWidth - ball.offsetWidth;
+
+  // ❌ NO CLAMP → OUT LOGIC
+  if(x < minX || x > maxX){
+    running = false;
+    outScreen.style.display = "flex";
+    return;
   }
 
   ball.style.left = x + "px";
+
+  // score = seconds
+  score = Math.floor((Date.now() - startTime) / 1000);
+  scoreBox.innerText = "Score: " + score;
+
   requestAnimationFrame(loop);
 }
 </script>
